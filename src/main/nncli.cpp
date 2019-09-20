@@ -223,7 +223,7 @@ void process_clicks(Trainer& trainer, DataSet& dataset, double winWidth, double 
 		Click c = clicks.front();
 		clicks.pop();
 		if(
-				   (c.action == GLFW_RELEASE)
+				   (c.action == GLFW_PRESS)
 				&& (c.x >= 0.0) && (c.x < winWidth)
 				&& (c.y >= 0.0) && (c.y < winHeight)
 		) {
@@ -249,7 +249,7 @@ int main(int argn, char** args) {
 	DataSet ds;
 
 	pix::Runtime runtime;
-	pix::Window* window = new pix::Window(450, 450, "PerceptroNN");
+	pix::Window* window = new pix::Window(450, 450, "Pixnn");
 	gla::ShaderProgram& shader = pix::get_shader();
 	pix::AsyncBox frame = pix::AsyncBox(shader, BOX_SIZE, BOX_SIZE);
 	Trainer trainer = Trainer(&n, &ds, act_tanh, act_tanh_deriv, DEF_LEARNING_RATE);
@@ -277,8 +277,16 @@ int main(int argn, char** args) {
 
 			switch(stored_action) {
 				case Action::QUIT:           window->close();  break;
-				case Action::SHOW_TRAINING:  show_training = ! show_training;  break;
-				case Action::SHOW_DERIVS:    show_derivs = ! show_derivs;  break;
+				case Action::SHOW_TRAINING:
+					show_training = ! show_training;
+					std::cout << "----- " << (show_training? "Show":"Hid")
+					          << "ing training data -----\n";
+					break;
+				case Action::SHOW_DERIVS:
+					show_derivs = ! show_derivs;
+					std::cout << "----- " << (show_derivs? "En":"Dis")
+					          << "abled derivative mode -----\n";
+					break;
 				case Action::RATE_UP: {
 					trainer.setLearningRate(trainer.getLearningRate() * 2.0);
 					std::cout << "Rate: " << trainer.getLearningRate() << '\n';
@@ -290,13 +298,13 @@ int main(int argn, char** args) {
 				case Action::RESET: {
 					auto lock = trainer.acquireLock();
 					n.randomize();
-					std::cout << "-----  Reset  -----" << '\n';
+					std::cout << "-----  NN reset  -----" << '\n';
 				} break;
 				case Action::REGEN: {
 					auto lock = trainer.acquireLock();
 					//ds = gen_data(TRAINING_SIZE);
 					ds.resize(0);
-					std::cout << "-----  Clear  -----" << '\n';
+					std::cout << "-----  Canvas cleared  -----" << '\n';
 				} break;
 				default:  break;
 			}
