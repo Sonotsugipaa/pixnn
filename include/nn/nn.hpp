@@ -1,5 +1,5 @@
-#ifndef NN_HPP
-#define NN_HPP
+#ifndef NN_NN_HPP
+#define NN_NN_HPP
 
 #include <vector>
 #include <string>
@@ -70,7 +70,7 @@ inline namespace nn {
 		Neurode(size_t inputs, size_t outputs);
 		Neurode(const Neurode&);
 		Neurode(Neurode&&);
-		~Neurode();
+		virtual ~Neurode();
 
 		Neurode& operator = (const Neurode&);
 		Neurode& operator = (Neurode&&);
@@ -113,14 +113,22 @@ inline namespace nn {
 		);
 		Stripe(const Stripe&);
 		Stripe(Stripe&&);
-		~Stripe();
+		virtual ~Stripe();
 
 		Stripe& operator = (const Stripe&);
 		Stripe& operator = (Stripe&&);
 
 		void guess(activation_func, double* inputs, double* outputs) const;
-		double train(activation_func, activation_func_deriv, double* inputs, double* outputs, double rate);
-		double train(activation_func, activation_func_deriv, DataSet& data, long long int which, double rate);
+
+		double train(
+				activation_func, activation_func_deriv,
+				double* inputs, double* expect_outputs,
+				double rate);
+
+		double train(
+				activation_func, activation_func_deriv,
+				DataSet& data, long long int which,
+				double rate);
 
 		void randomize();
 
