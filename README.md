@@ -4,7 +4,7 @@
 
 <p>
 	Pixnn is an OpenGL application that allows the user to draw shapes
-	on a grid, or canvas, by adding blue or red points - one at a time:
+	on a grid, or canvas, by adding blue or red points:
 	a neural network will do all the dirty work and draw a
 	<i>light blue / orange</i> image based on your inputs... or orange
 	spikes, depending on its mood.
@@ -17,25 +17,49 @@
 		<th> Key / Button </th>
 		<th> Action </th>
 	</tr>
-	<tr> <td>Left Mouse Button</td>  <td>Add Red Point</td>          </tr>
-	<tr> <td>Right Mouse Button</td> <td>Add Blue Point</td>         </tr>
-	<tr> <td>Q / ESC</td>            <td>Quit</td>                   </tr>
-	<tr> <td>R</td>                  <td>Reset AI</td>               </tr>
-	<tr> <td>G</td>                  <td>Reset Canvas</td>           </tr>
-	<tr> <td>T</td>                  <td>Toggle Show Canvas</td>     </tr>
-	<tr> <td>D</td>                  <td>Toggle derivatives</td>     </tr>
-	<tr> <td>PAGE-UP</td>            <td>Increase Learning Rate</td> </tr>
-	<tr> <td>PAGE-DOWN</td>          <td>Decrease Learning Rate</td> </tr>
+	<tr> <td>Left Mouse Button</td>   <td>Add Red Point</td>          </tr>
+	<tr> <td>Right Mouse Button</td>  <td>Add Blue Point</td>         </tr>
+	<tr> <td>Middle Mouse Button</td> <td>Add White Point</td>        </tr>
+	<tr> <td>SHIFT</td>               <td>Half-Strength Modifier</td> </tr>
+	<tr> <td>PAGE-UP</td>             <td>Increase Learning Rate</td> </tr>
+	<tr> <td>PAGE-DOWN</td>           <td>Decrease Learning Rate</td> </tr>
+	<tr> <td>HOME</td>                <td>Increase Granularity</td>   </tr>
+	<tr> <td>END</td>                 <td>Decrease Granularity</td>   </tr>
+	<tr> <td>DELETE</td>              <td>Undo last point</td>        </tr>
+	<tr> <td>Q / ESC</td>             <td>Quit</td>                   </tr>
+	<tr> <td>R</td>                   <td>Reset AI</td>               </tr>
+	<tr> <td>G</td>                   <td>Reset Canvas</td>           </tr>
+	<tr> <td>T</td>                   <td>Toggle Show Canvas</td>     </tr>
+	<tr> <td>D</td>                   <td>Toggle Derivatives</td>     </tr>
 </table>
+
+The mouse buttons can be held, in order to continuously add points; <br/>
+beware, adding multiple points (or holding a mouse button without moving
+the cursor) will place duplicate training samples and will affect the results -
+more samples in a small zone means more training cycles will be performed there,
+and less training cycles will be performed elsewhere.
 
 <h2> Requirements and Dependencies </h2>
 
 <p>
 	Pixnn is built around OpenGL 1.5: compiling it and running it
-	require the <code>GLFW</code> and <code>GLEW</code> libraries
+	require the <code>GLFW3</code> and <code>GLEW</code> libraries
 	(either static or dynamic), <code>GNU Make</code> and the C++
 	compiler (and its STL) from GCC, a.k.a. <code>g++</code>.
 </p>
+
+The following packages should provide the necessary libraries:
+- Pacman (Arch Linux)
+	- gcc
+	- make
+	- glew
+	- glfw-x11
+- dpkg (Debian)</li>
+	- g++ *(GCC version must be > 7)*
+	- make
+	- libglfw3
+	- libglew-dev
+	- libglew2.1
 
 <h2> Compiling and Linking </h2>
 
@@ -55,7 +79,7 @@
 	<li> The neural network is neither multi-threaded nor throttled:
 	     it will use all the CPU time it can get from a single thread
 	     for learning, and an additional throttled thread to compute
-	     each pixel of the canvas with a frequency of 40 Hz. </li>
+	     each pixel of the canvas with a frequency of 60 Hz. </li>
 	<li> OpenGL and the C++ STL make memory-profiling difficult with
 	     <code>valgrind</code>, therefore some memory leaks <i>may</i>
 	     exist within the main application. </li>

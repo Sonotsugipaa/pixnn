@@ -101,7 +101,7 @@ inline namespace nn {
 		/* _forward and _backward are internal buffers
 		 * used for the back-propagation algorithm;
 		 * additionally, _forward is checked to be ==nullptr
-		 * to see if the stipe has been moved */
+		 * to see if the stripe has been moved */
 		mutable double** _forward;
 		mutable double** _backward;
 

@@ -16,7 +16,9 @@
 
 constexpr int BOX_SIZE = 128;
 constexpr int TRAINING_SIZE = (BOX_SIZE < 128)? BOX_SIZE : 128;
-constexpr double FRAME_INTERVAL_S = 1.0 / 40.0;
+constexpr double CLICK_REPEAT_S = 0.125;
+constexpr double GRANULARITY = 16;
+constexpr double FRAME_INTERVAL_S = 1.0 / 60.0;
 constexpr double PRINT_INTERVAL_S = 0.5;
 constexpr double DEF_LEARNING_RATE = 0.00001;
 
@@ -150,15 +152,20 @@ namespace {
 
 
 	enum class Action {
-		NONE, RESET, REGEN, RATE_UP, RATE_DOWN, QUIT,
-		SHOW_TRAINING, SHOW_DERIVS
+		NONE, RESET, REGEN, RATE_UP, RATE_DOWN,
+		GRAN_UP, GRAN_DOWN, QUIT, SHOW_TRAINING,
+		SHOW_DERIVS, UNDO
 	};
 
 	struct Click {
-		GLFWwindow* window;
+		GLFWwindow* window = nullptr;
 		double x, y;
 		int button, action, mods;
 	};
+
+	bool mouse_pressed;
+	double mouse_pressed_last;
+	Click last_click;
 
 	Action stored_action = Action::NONE;
 	std::queue<Click> clicks;
@@ -173,7 +180,10 @@ namespace {
 				case GLFW_KEY_D:          stored_action = Action::SHOW_DERIVS;    break;
 				case GLFW_KEY_PAGE_UP:    stored_action = Action::RATE_UP;        break;
 				case GLFW_KEY_PAGE_DOWN:  stored_action = Action::RATE_DOWN;      break;
+				case GLFW_KEY_HOME:       stored_action = Action::GRAN_UP;        break;
+				case GLFW_KEY_END:        stored_action = Action::GRAN_DOWN;      break;
 				case GLFW_KEY_ESCAPE:     stored_action = Action::QUIT;           break;
+				case GLFW_KEY_DELETE:     stored_action = Action::UNDO;           break;
 			}
 		}
 	}
@@ -188,11 +198,13 @@ namespace {
 
 
 
-void poll_nn(Stripe n, pix::AsyncBox& box, activation_func act) {
+void poll_nn(Stripe n, pix::AsyncBox& box, activation_func act, size_t pix_throughput) {
 	struct pack {
 		Stripe& n;
 		activation_func act;
-	} packed = pack { n, act };
+		size_t pix_throughput;
+		pix::AsyncBox& box;
+	} packed = pack { n, act, pix_throughput, box };
 	/*box.computePixels([] (unsigned x, unsigned y) {
 		if((x == 0 && y == 0)
 		|| (x == 3 && y == 3)
@@ -204,42 +216,69 @@ void poll_nn(Stripe n, pix::AsyncBox& box, activation_func act) {
 			(static_cast<double>(x) - (BOX_SIZE/2)) / (BOX_SIZE/2),
 			(static_cast<double>(y) - (BOX_SIZE/2)) / (BOX_SIZE/2)
 		};
-		pack unpacked = *reinterpret_cast<pack*>(packed);
-		double dguess;
-		unpacked.n.guess(unpacked.act, inputs, &dguess);
-		float guess = dguess;
-		if(guess >  1.0f)  guess =  1.0f;
-		else
-		if(guess < -1.0f)  guess = -1.0f;
-		if(guess > 0.0f) {
-			return glm::vec4(1.0f, 0.6f, 0.0f, guess);
+		pack* unpacked = reinterpret_cast<pack*>(packed);
+		if(
+				(unpacked->pix_throughput == 0) ||
+				(::rand() % (unpacked->pix_throughput) == 0)
+		) {
+			double dguess;
+			unpacked->n.guess(unpacked->act, inputs, &dguess);
+			float guess = dguess;
+			if(guess >  1.0f)  guess =  1.0f;
+			else
+			if(guess < -1.0f)  guess = -1.0f;
+			if(guess > 0.0f) {
+				return glm::vec4(1.0f, 0.6f, 0.0f, guess);
+			} else {
+				return glm::vec4(0.0f, 0.6f, 1.0f, -guess);
+			}
 		} else {
-			return glm::vec4(0.0f, 0.6f, 1.0f, -guess);
+			return unpacked->box.getPixel(x, y);
 		}
 	});
 }
 
 
-void process_clicks(Trainer& trainer, DataSet& dataset, double winWidth, double winHeight) {
+void add_point(
+		double x, double y, int button, int mod,
+		Trainer& trainer, DataSet& dataset,
+		double win_width, double win_height
+) {
+	if(
+			(x >= 0.0) && (x < win_width) &&
+			(y >= 0.0) && (y < win_height)
+	) {
+		double put_value = 0.0;
+		x = range<double>(x, 0, win_width,  -1.0,  1.0);
+		y = range<double>(y, 0, win_height,  1.0, -1.0);
+		switch(button) {
+			case GLFW_MOUSE_BUTTON_LEFT:    put_value =  1.0;  break;
+			case GLFW_MOUSE_BUTTON_MIDDLE:  put_value =  0.0;  break;
+			case GLFW_MOUSE_BUTTON_RIGHT:   put_value = -1.0;  break;
+		}
+		if(0 != (mod & GLFW_MOD_SHIFT))  put_value /= 2.0;
+		if((button == GLFW_MOUSE_BUTTON_MIDDLE) || (put_value != 0.0)) {
+			auto t_lock = trainer.acquireLock();
+			dataset.push_back({{ x, y }, { put_value }});
+		}
+	}
+}
+
+void process_clicks(
+		Trainer& trainer, DataSet& dataset,
+		double win_width, double win_height,
+		double current_time
+) {
 	while(! clicks.empty()) {
 		Click c = clicks.front();
 		clicks.pop();
-		if(
-				   (c.action == GLFW_PRESS)
-				&& (c.x >= 0.0) && (c.x < winWidth)
-				&& (c.y >= 0.0) && (c.y < winHeight)
-		) {
-			double put_value = 0.0;
-			c.x = range<double>(c.x, 0, winWidth,  -1.0,  1.0);
-			c.y = range<double>(c.y, 0, winHeight,  1.0, -1.0);
-			switch(c.button) {
-				case GLFW_MOUSE_BUTTON_LEFT:   put_value =  1.0;  break;
-				case GLFW_MOUSE_BUTTON_RIGHT:  put_value = -1.0;  break;
-			}
-			if(put_value != 0.0) {
-				auto lock = trainer.acquireLock();
-				dataset.push_back({{ c.x, c.y }, { put_value }});
-			}
+		if(c.action == GLFW_PRESS) {
+			add_point(c.x, c.y, c.button, c.mods, trainer, dataset, win_width, win_height);
+			mouse_pressed = true;
+			mouse_pressed_last = current_time;
+			last_click = c;
+		} else {
+			mouse_pressed = false;
 		}
 	}
 }
@@ -262,20 +301,35 @@ int main(int argn, char** args) {
 
 	double last_time = 0.0;
 	double time = 0.0;
+	size_t granularity = GRANULARITY;
 	glfwSetTime(time);
 
 	glfwSetKeyCallback(*window, key_callback);
 	glfwSetMouseButtonCallback(*window, mouse_button_callback);
+
+	poll_nn(n, frame, show_derivs? act_tanh_deriv : act_tanh, 0);
 
 	while(! window->shouldClose()) {
 		time = glfwGetTime();
 		if((time - last_time) > FRAME_INTERVAL_S) {
 			last_time = time;
 
-			int winWidth, winHeight;
-			glfwGetFramebufferSize(*window, &winWidth, &winHeight);
-			glViewport(0, 0, winWidth, winHeight);
+			int win_width, win_height;
+			glfwGetFramebufferSize(*window, &win_width, &win_height);
+			glViewport(0, 0, win_width, win_height);
 			window->pollEvents();
+			process_clicks(trainer, ds, win_width, win_height, time);
+
+			if(mouse_pressed) {
+				if(mouse_pressed_last + CLICK_REPEAT_S < time) {
+					mouse_pressed_last = time;
+					double x, y;
+					glfwGetCursorPos(*window, &x, &y);
+					add_point(
+							x, y, last_click.button, last_click.mods,
+							trainer, ds, win_width, win_height);
+				}
+			}
 
 			switch(stored_action) {
 				case Action::QUIT:           window->close();  break;
@@ -297,16 +351,29 @@ int main(int argn, char** args) {
 					trainer.setLearningRate(trainer.getLearningRate() / 2.0);
 					std::cout << "Rate: " << trainer.getLearningRate() << '\n';
 				} break;
+				case Action::GRAN_UP: {
+					granularity *= 2;
+					std::cout << "Granularity: " << granularity << '\n';
+				} break;
+				case Action::GRAN_DOWN: {
+					granularity /= 2;  if(granularity < 1)  granularity = 1;
+					std::cout << "Granularity: " << granularity << '\n';
+				} break;
 				case Action::RESET: {
 					auto lock = trainer.acquireLock();
 					n.randomize();
+					poll_nn(n, frame, show_derivs? act_tanh_deriv : act_tanh, 0);
 					std::cout << "-----  NN reset  -----" << '\n';
 				} break;
 				case Action::REGEN: {
 					auto lock = trainer.acquireLock();
-					//ds = gen_data(TRAINING_SIZE);
 					ds.resize(0);
 					std::cout << "-----  Canvas cleared  -----" << '\n';
+				} break;
+				case Action::UNDO: {
+					auto lock = trainer.acquireLock();
+					ds.pop_back();
+					std::cout << "-----  Undo last point  -----" << '\n';
 				} break;
 				default:  break;
 			}
@@ -319,9 +386,8 @@ int main(int argn, char** args) {
 			glEnable(GL_BLEND);
 			glEnable(GL_ALPHA_TEST);
 
-			poll_nn(n, frame, show_derivs? act_tanh_deriv : act_tanh);
+			poll_nn(n, frame, show_derivs? act_tanh_deriv : act_tanh, granularity);
 
-			process_clicks(trainer, ds, winWidth, winHeight);
 			if(show_training)
 			for(DataRow& r : ds) {
 				auto lock = trainer.acquireLock();
