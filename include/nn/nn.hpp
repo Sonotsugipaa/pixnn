@@ -120,7 +120,7 @@ inline namespace nn {
 
 		void guess(activation_func, double* inputs, double* outputs) const;
 		double train(activation_func, activation_func_deriv, double* inputs, double* outputs, double rate);
-		double train(activation_func, activation_func_deriv, DataSet& data, double rate);
+		double train(activation_func, activation_func_deriv, DataSet& data, long long int which, double rate);
 
 		void randomize();
 

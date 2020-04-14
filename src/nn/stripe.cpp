@@ -167,13 +167,19 @@ namespace nn {
 
 	double Stripe::train(
 		activation_func act, activation_func_deriv derive,
-		DataSet& data, double rate
+		DataSet& data, long long int which, double rate
 	) {
-		double avg_error = 0.0;
+		double avg_error;
 		double runs = data.size();
-		for(DataRow& row : data) {
-			++runs;
-			avg_error += train(act, derive, row.inputs.data(), row.outputs.data(), rate) / runs;
+		if(which < 0) {
+			avg_error = 0.0;
+			for(DataRow& row : data) {
+				++runs;
+				avg_error += train(act, derive, row.inputs.data(), row.outputs.data(), rate) / runs;
+			}
+		} else if(! data.empty()) {
+			DataRow& row = data[which % data.size()];
+			avg_error = train(act, derive, row.inputs.data(), row.outputs.data(), rate);
 		}
 		return avg_error;
 	}

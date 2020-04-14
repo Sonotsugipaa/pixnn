@@ -2,7 +2,7 @@ COMMON_FLAGS=-g -O3 -Wall -Wpedantic -I./include -Llib
 CPPFLAGS=-std=c++17 $(COMMON_FLAGS)
 CPP_SRCS=$(wildcard src/*.cpp)
 ALL_OBJS=$(patsubst src/%.cpp, build/%.o, $(CPP_SRCS))
-OPENGL=-lglfw3 -lGL -lGLEW -ldl -lX11
+OPENGL=-lglfw -lGL -lGLEW -ldl -lX11
 LIBS=-lpix_core -lnn
 
 # compiles all objects, and creates executable files from ./src/main

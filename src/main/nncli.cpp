@@ -74,7 +74,7 @@ namespace {
 				{ expected_value(inputs[0], inputs[1]) }
 			});
 		}
-		return std::move(ds);
+		return ds;
 	}
 
 
@@ -99,7 +99,9 @@ namespace {
 				if(*n == nullptr) {
 					die = true;
 				} else {
-					(*n)->train(act, deriv, **ds, *rate);
+					int random = std::rand();
+					if(random < 0)  random = -random;
+					(*n)->train(act, deriv, **ds, random, *rate);
 				}
 			} while(! die);
 		}
@@ -249,7 +251,7 @@ int main(int argn, char** args) {
 	DataSet ds;
 
 	pix::Runtime runtime;
-	pix::Window* window = new pix::Window(450, 450, "Pixnn");
+	pix::Window* window = new pix::Window(650, 650, "Pixnn");
 	gla::ShaderProgram& shader = pix::get_shader();
 	pix::AsyncBox frame = pix::AsyncBox(shader, BOX_SIZE, BOX_SIZE);
 	Trainer trainer = Trainer(&n, &ds, act_tanh, act_tanh_deriv, DEF_LEARNING_RATE);
