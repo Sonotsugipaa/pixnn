@@ -26,11 +26,15 @@
 	<tr> <td>HOME</td>                <td>Increase Granularity</td>   </tr>
 	<tr> <td>END</td>                 <td>Decrease Granularity</td>   </tr>
 	<tr> <td>DELETE</td>              <td>Undo last point</td>        </tr>
+	<tr> <td>NUMPAD_PLUS</td>         <td>Increase performance cap </td>  </tr>
+	<tr> <td>NUMPAD_MINUS</td>        <td>Decrease performance cap </td>  </tr>
+	<tr> <td>DELETE</td>              <td>Undo last point</td>        </tr>
 	<tr> <td>Q / ESC</td>             <td>Quit</td>                   </tr>
 	<tr> <td>R</td>                   <td>Reset AI</td>               </tr>
 	<tr> <td>G</td>                   <td>Reset Canvas</td>           </tr>
 	<tr> <td>T</td>                   <td>Toggle Show Canvas</td>     </tr>
 	<tr> <td>D</td>                   <td>Toggle Derivatives</td>     </tr>
+	<tr> <td>P</td>                   <td>Print current error rate</td>  </tr>
 </table>
 
 The mouse buttons can be held, in order to continuously add points; <br/>
