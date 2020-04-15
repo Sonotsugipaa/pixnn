@@ -169,10 +169,9 @@ namespace nn {
 		activation_func act, activation_func_deriv derive,
 		DataSet& data, long long int which, double rate
 	) {
-		double avg_error;
+		double avg_error = 0.0;
 		double runs = data.size();
 		if(which < 0) {
-			avg_error = 0.0;
 			for(DataRow& row : data) {
 				++runs;
 				avg_error += train(act, derive, row.inputs.data(), row.outputs.data(), rate) / runs;
