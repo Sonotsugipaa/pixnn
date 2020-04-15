@@ -81,6 +81,7 @@ namespace {
 		volatile double rate;
 		volatile double last_error = 0;
 		volatile unsigned throttle; // 0 to THROTTLE_MAX
+		volatile bool die;
 		std::thread worker;
 		std::mutex mutex;
 
@@ -91,47 +92,42 @@ namespace {
 				volatile const unsigned* train_batch_size,
 				volatile const double* rate, volatile const unsigned* throttle,
 				volatile double* last_error,
+				volatile bool* die_monitor,
 				std::mutex* mutex
 		) {
-			bool die = false;
-			do {
-				if(*n == nullptr) {
-					die = true;
-				} else {
-					/* If the NN's avg error is very low, there's no need to waste
-					 * the system's resources for its correction. */
+			while(! *die_monitor) {
+				unsigned throttle_actual;
+				{
+					auto lock = std::unique_lock<std::mutex>(*mutex);
 					unsigned throttle_error =
 						*throttle * (((double) *throttle) * (*last_error / PERF_ERROR_TOLERANCE));
-					unsigned throttle_actual = *throttle;
+					throttle_actual = *throttle;
 					if(throttle_error < throttle_actual) {
 						throttle_actual = throttle_error; }
 					if(throttle_error > THROTTLE_MAX) {
 						throttle_error = THROTTLE_MAX; }
-					{
-						auto lock = std::unique_lock<std::mutex>(*mutex);
-						double last_error_local = 0.0;
-						unsigned train_batch_size_local = *train_batch_size;
-						for(unsigned i=0; i < train_batch_size_local; ++i) {
-							unsigned random = (unsigned) nn::random(0, (*ds)->size());
-							last_error_local += (*n)->train(
-								act, deriv, **ds, random,
-								*rate * THROTTLE_TABLE_RATE[throttle_error]);
-						}
-						last_error_local /= train_batch_size_local;
-						*last_error = last_error_local =
-							(*last_error * (1.0 - ERROR_AVERAGE_EXP_ALPHA)) +
-							(last_error_local * ERROR_AVERAGE_EXP_ALPHA);
+					double last_error_local = 0.0;
+					unsigned train_batch_size_local = *train_batch_size;
+					for(unsigned i=0; i < train_batch_size_local; ++i) {
+						unsigned random = (unsigned) nn::random(0, (*ds)->size());
+						last_error_local += (*n)->train(
+							act, deriv, **ds, random,
+							*rate * THROTTLE_TABLE_RATE[throttle_error]);
 					}
-					if(
-							throttle_actual <= THROTTLE_MAX &&
-							THROTTLE_TABLE_MS[throttle_actual] > 0.0
-					) {
-					}
+					last_error_local /= train_batch_size_local;
+					*last_error = last_error_local =
+						(*last_error * (1.0 - ERROR_AVERAGE_EXP_ALPHA)) +
+						(last_error_local * ERROR_AVERAGE_EXP_ALPHA);
+				}
+				if(
+						throttle_actual <= THROTTLE_MAX &&
+						THROTTLE_TABLE_MS[throttle_actual] > 0.0
+				) {
 					std::this_thread::yield();
 						std::this_thread::sleep_for(
 							std::chrono::milliseconds((int) THROTTLE_TABLE_MS[throttle_actual]));
 				}
-			} while(! die);
+			}
 		}
 
 	public:
@@ -146,13 +142,14 @@ namespace {
 				train_batch_size (training_batch_size),
 				rate (learning_rate),
 				throttle (throttle < THROTTLE_MAX? throttle : THROTTLE_MAX),
+				die (false),
 				// Watch out below: do not accidentally pass pointers to parameters
 				worker (
 					worker_func, &n, &ds,
 					activate, derivate,
 					&train_batch_size,
 					&rate, &throttle, &last_error,
-					&mutex)
+					&die, &mutex)
 		{ }
 
 		~Trainer() { stop(); }
@@ -177,8 +174,8 @@ namespace {
 		inline double getError() const { return last_error; }
 
 		void stop() {
-			if(n != nullptr) {
-				n = nullptr;
+			die = true;
+			if(worker.joinable()) {
 				worker.join();
 			}
 		}
@@ -340,7 +337,6 @@ N parse_number(
 	 * unsatisfying search online, is valid and needed because of a flaw in
 	 * the C implementation of strton-like functions. */
 	N buffer_n = strton(str, const_cast<char**>(&str_save), 0);
-std::cout << "PARSED NUMBER " << buffer_n << '\n';
 	if(end_saveptr != nullptr) {
 		*end_saveptr = str_save; }
 	do {
@@ -364,7 +360,6 @@ std::vector<size_t> parse_uint_list(
 	char ending = *list;
 	const char* list_save = list;
 	while(ending != '\0') {
-std::cout << "PARSING LIST NUMBER\n";
 		size_t n = parse_number<unsigned long, std::strtoul>(list, allowed_endings, &list);
 		if(n < min) {
 			throw nn::InvalidNumberException("number must be greater than " + std::to_string(n)); }
@@ -372,10 +367,8 @@ std::cout << "PARSING LIST NUMBER\n";
 			throw nn::InvalidNumberException("number must be lower than " + std::to_string(n)); }
 		if(list != list_save) {
 			r.push_back(n); }
-std::cout << "LIST PTR \"" << list << "\" POS " << ((size_t) list) << " TO ";
 		ending = *list;
 		++list;
-std::cout << ((size_t) list) << " WHICH = '" << ending << "' (" << ((int) ending) << ")" << '\n';
 	}
 	return r;
 }
@@ -449,7 +442,6 @@ int main(int argn, char** args) {
 		pix::Window* window = new pix::Window(options.win_width, options.win_height, "PixNN");
 		gla::ShaderProgram& shader = pix::get_shader();
 		pix::AsyncBox frame = pix::AsyncBox(shader, options.res_x, options.res_y);
-std::cout << "INITIAL BATCH SIZE " << options.train_batch_size << '\n';
 		Trainer trainer = Trainer(
 				&n, &ds, act_tanh, act_tanh_deriv,
 				options.train_batch_size, DEF_LEARNING_RATE, THROTTLE_MAX);
