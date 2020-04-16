@@ -424,6 +424,17 @@ Options parse_arguments(char** args) {
 					"semicolon-separated list, where every item is an integer number "
 					"greater than 0"); }
 			opts.layer_list = parse_uint_list(*args, ",:;", 1);
+		} else
+		if(arg == "--batch-size") {
+			++args;
+			const char* end_beg;
+			decltype(opts.train_batch_size) n =
+				parse_number<unsigned long, std::strtoul>(*args, "", &end_beg);
+			if(*args != end_beg) {
+				opts.train_batch_size = n; }
+		} else {
+			throw nn::InvalidOptionException(
+				"invalid option \"" + arg + "\"");
 		}
 		++args;
 	}
