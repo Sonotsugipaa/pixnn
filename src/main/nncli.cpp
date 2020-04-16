@@ -98,7 +98,6 @@ namespace {
 			while(! *die_monitor) {
 				unsigned throttle_actual;
 				{
-					auto lock = std::unique_lock<std::mutex>(*mutex);
 					unsigned throttle_error =
 						*throttle * (((double) *throttle) * (*last_error / PERF_ERROR_TOLERANCE));
 					throttle_actual = *throttle;
@@ -110,6 +109,7 @@ namespace {
 					unsigned train_batch_size_local = *train_batch_size;
 					for(unsigned i=0; i < train_batch_size_local; ++i) {
 						unsigned random = (unsigned) nn::random(0, (*ds)->size());
+						auto lock = std::unique_lock<std::mutex>(*mutex);
 						last_error_local += (*n)->train(
 							act, deriv, **ds, random,
 							*rate * THROTTLE_TABLE_RATE[throttle_error]);
@@ -317,7 +317,7 @@ void process_clicks(
 		if(c.action == GLFW_PRESS) {
 			add_point(c.x, c.y, c.button, c.mods, trainer, dataset, win_width, win_height);
 			mouse_pressed = true;
-			mouse_pressed_last = current_time;
+			mouse_pressed_last = current_time + CLICK_REPEAT_S;
 			last_click = c;
 		} else {
 			mouse_pressed = false;
